@@ -11,14 +11,12 @@ boardSize = 4
 emptyBoard :: Board
 emptyBoard = replicate boardSize (replicate boardSize 0)
 
--- Mostra o tabuleiro
 showBoard :: Board -> String
 showBoard = unlines . map (unwords . map showCell)
   where
     showCell 0 = "."
     showCell n = show n
 
--- Gera uma nova peça 2 ou 4 em uma posição vazia aleatória
 addRandomTile :: Board -> IO Board
 addRandomTile board = do
   let emptyCells = [(r,c) | r <- [0..boardSize-1], c <- [0..boardSize-1], (board !! r) !! c == 0]
@@ -32,13 +30,11 @@ addRandomTile board = do
       return $ take r board ++ [newRow] ++ drop (r+1) board
 
 
--- Rotaciona o tabuleiro 90 graus no sentido horário
 rotateBoard :: Board -> Board
 rotateBoard = reverse . transpose
   where transpose ([]:_) = []
         transpose x = map head x : transpose (map tail x)
 
--- Move e junta uma linha para a esquerda
 moveLine :: [Int] -> [Int]
 moveLine xs = let noZeros = filter (/= 0) xs
                   merged = merge noZeros
@@ -49,27 +45,21 @@ moveLine xs = let noZeros = filter (/= 0) xs
       | otherwise = x : merge (y:zs)
     merge xs = xs
 
--- Move a board para esquerda
 moveLeft :: Board -> Board
 moveLeft = map moveLine
 
--- Move para direita = inverter linhas + moveLeft + inverter de novo
 moveRight :: Board -> Board
 moveRight = map (reverse . moveLine . reverse)
 
--- Move para cima = rotacionar 3x + moveLeft + rotacionar 1x
 moveUp :: Board -> Board
 moveUp = rotateBoard . rotateBoard . rotateBoard . moveLeft . rotateBoard
 
--- Move para baixo = rotacionar 1x + moveLeft + rotacionar 3x
 moveDown :: Board -> Board
 moveDown = rotateBoard . moveLeft . rotateBoard . rotateBoard . rotateBoard
 
--- Verifica se o jogo acabou (não há movimentos possíveis)
 gameOver :: Board -> Bool
 gameOver b = all (\f -> f b == b) [moveLeft, moveRight, moveUp, moveDown]
 
--- Função principal do jogo
 gameLoop :: Board -> IO ()
 gameLoop board = do
   putStrLn $ showBoard board

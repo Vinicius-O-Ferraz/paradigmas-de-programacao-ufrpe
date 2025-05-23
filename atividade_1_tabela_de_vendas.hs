@@ -36,7 +36,6 @@ main = do
   putStrLn $ "Total: " ++ show (totalVendas semana)
   putStrLn $ "Média: " ++ show (mediaVendas semana)
 
-
   -- teste para semana 10
 
   -- let semana = 10

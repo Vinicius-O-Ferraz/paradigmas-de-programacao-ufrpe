@@ -1,21 +1,22 @@
-{-# LANGUAGE LambdaCase #-}
-
+{-# LANGUAGE OverloadedStrings #-}
+import Control.Monad (when, void)
+import Control.Monad.IO.Class (liftIO)
+import Data.IORef
+import Data.List (transpose)
 import System.Random (randomRIO)
-import System.IO (hFlush, stdout)
+import qualified Graphics.UI.Threepenny as UI
+import Graphics.UI.Threepenny.Core
 
 type Board = [[Int]]
-
 boardSize :: Int
 boardSize = 4
 
 emptyBoard :: Board
 emptyBoard = replicate boardSize (replicate boardSize 0)
 
-showBoard :: Board -> String
-showBoard = unlines . map (unwords . map showCell)
-  where
-    showCell 0 = "."
-    showCell n = show n
+showCell :: Int -> String
+showCell 0 = "."
+showCell n = show n
 
 addRandomTile :: Board -> IO Board
 addRandomTile board = do
@@ -23,17 +24,15 @@ addRandomTile board = do
   if null emptyCells
     then return board
     else do
-      (r,c) <- (emptyCells !!) <$> (randomRIO (0, length emptyCells -1) :: IO Int)
-      x <- (randomRIO (1,10) :: IO Int)
+      (r,c) <- (emptyCells !!) <$> (randomRIO (0, length emptyCells - 1) :: IO Int)
+      x <- randomRIO (1, 10) :: IO Int
       let val = if x == 10 then 4 else 2
-      let newRow = take c (board !! r) ++ [val] ++ drop (c+1) (board !! r)
-      return $ take r board ++ [newRow] ++ drop (r+1) board
+      let newRow = take c (board !! r) ++ [val] ++ drop (c + 1) (board !! r)
+      return $ take r board ++ [newRow] ++ drop (r + 1) board
 
 
 rotateBoard :: Board -> Board
 rotateBoard = reverse . transpose
-  where transpose ([]:_) = []
-        transpose x = map head x : transpose (map tail x)
 
 moveLine :: [Int] -> [Int]
 moveLine xs = let noZeros = filter (/= 0) xs
@@ -45,48 +44,83 @@ moveLine xs = let noZeros = filter (/= 0) xs
       | otherwise = x : merge (y:zs)
     merge xs = xs
 
-moveLeft :: Board -> Board
+moveLeft, moveRight, moveUp, moveDown :: Board -> Board
 moveLeft = map moveLine
-
-moveRight :: Board -> Board
 moveRight = map (reverse . moveLine . reverse)
-
-moveUp :: Board -> Board
 moveUp = rotateBoard . rotateBoard . rotateBoard . moveLeft . rotateBoard
-
-moveDown :: Board -> Board
 moveDown = rotateBoard . moveLeft . rotateBoard . rotateBoard . rotateBoard
 
 gameOver :: Board -> Bool
 gameOver b = all (\f -> f b == b) [moveLeft, moveRight, moveUp, moveDown]
 
-gameLoop :: Board -> IO ()
-gameLoop board = do
-  putStrLn $ showBoard board
-  if any (elem 2048) board
-    then putStrLn "Você venceu!"
-    else if gameOver board
-      then putStrLn "Game Over!"
-      else do
-        putStr "Movimento (w/a/s/d): "
-        hFlush stdout
-        cmd <- getLine
-        let newBoard = case cmd of
-              "a" -> moveLeft board
-              "d" -> moveRight board
-              "w" -> moveUp board
-              "s" -> moveDown board
-              _   -> board
-        if newBoard == board
-          then do
-            putStrLn "Movimento inválido!"
-            gameLoop board
-          else do
-            b2 <- addRandomTile newBoard
-            gameLoop b2
+-- Renderiza o tabuleiro
+renderBoard :: Board -> UI Element
+renderBoard board = UI.div # set UI.style [("display", "inline-block"), ("font-family", "monospace")] #+
+  [ UI.div # set UI.style [("display", "flex")] #+
+      [ UI.div # set UI.style (cellStyle (board !! r !! c)) #+ [string (showCell (board !! r !! c))] | c <- [0..boardSize-1]]
+  | r <- [0..boardSize-1]]
+  where
+    cellStyle 0 = [("width","50px"), ("height","50px"), ("margin","2px"), ("border","1px solid #ccc"),
+                   ("display","flex"), ("justify-content","center"), ("align-items","center"), ("background","#eee")]
+    cellStyle _ = [("width","50px"), ("height","50px"), ("margin","2px"), ("border","1px solid #ccc"),
+                   ("display","flex"), ("justify-content","center"), ("align-items","center"),
+                   ("background","#ffa"), ("font-weight","bold"), ("font-size","18px")]
+
+showAlert :: Window -> String -> UI ()
+showAlert window msg = do
+  alertBox <- UI.div # set UI.text msg
+                     # set UI.style [("background-color", "lightyellow"),
+                                     ("border", "1px solid black"),
+                                     ("padding", "10px"),
+                                     ("position", "fixed"),
+                                     ("top", "40%"),
+                                     ("left", "40%"),
+                                     ("z-index", "1000")]
+
+  closeBtn <- UI.button # set UI.text "Fechar"
+  on UI.click closeBtn $ \_ -> UI.delete alertBox
+  element alertBox #+ [element closeBtn]
+
+  body <- getBody window
+  void $ element body #+ [element alertBox]
+
+setup :: Board -> Window -> UI ()
+setup board0 window = do
+  return window # set UI.title "2048"
+
+  boardVar <- liftIO $ newIORef board0
+  boardView <- renderBoard board0
+  body <- getBody window
+  container <- UI.div # set UI.style
+    [ ("display", "flex")
+    , ("justify-content", "center")
+    , ("align-items", "center")
+    , ("height", "100vh") -- para centralizar verticalmente
+    ]
+
+  void $ element container #+ [element boardView]
+  void $ element body #+ [element container]
+
+  on UI.keydown body $ \keyCode -> do
+    board <- liftIO $ readIORef boardVar
+    let moveFn = case keyCode of
+          37 -> moveLeft
+          38 -> moveUp
+          39 -> moveRight
+          40 -> moveDown
+          _  -> id
+    let newBoard = moveFn board
+    if newBoard == board then return () else do
+      b2 <- liftIO $ addRandomTile newBoard
+      liftIO $ writeIORef boardVar b2
+      void $ element boardView # set children []
+      newView <- renderBoard b2
+      void $ element boardView #+ [element newView]
+
+      when (any (elem 2048) b2) $ showAlert window "Você venceu!"
+      when (gameOver b2) $ showAlert window "Game Over!"
 
 main :: IO ()
 main = do
-  b0 <- addRandomTile =<< addRandomTile emptyBoard
-  putStrLn "Jogo 2048 em Haskell! Use w/a/s/d para mover."
-  gameLoop b0
+  startBoard <- addRandomTile =<< addRandomTile emptyBoard
+  startGUI defaultConfig (setup startBoard)

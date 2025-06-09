@@ -50,7 +50,7 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
-executable meu-projeto
+executable 2048
     -- Import common warning flags.
     import:           warnings
 
@@ -63,9 +63,9 @@ executable meu-projeto
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
+
     -- Other library packages from which modules are imported.
-    build-depends: base >=4.7 && <5,
-               random >=1.1
+    build-depends: base, threepenny-gui, containers, random
 
 
     -- Directories containing source files.
@@ -73,3 +73,4 @@ executable meu-projeto
 
     -- Base language which the package is written in.
     default-language: Haskell2010
+    

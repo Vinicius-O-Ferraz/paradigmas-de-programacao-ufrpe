@@ -30,28 +30,53 @@ addRandomTile board = do
       let newRow = take c (board !! r) ++ [val] ++ drop (c + 1) (board !! r)
       return $ take r board ++ [newRow] ++ drop (r + 1) board
 
-
 rotateBoard :: Board -> Board
 rotateBoard = reverse . transpose
 
-moveLine :: [Int] -> [Int]
-moveLine xs = let noZeros = filter (/= 0) xs
-                  merged = merge noZeros
-              in merged ++ replicate (boardSize - length merged) 0
+-- move e calcula a pontuacao de uma linha
+moveLineWithScore :: [Int] -> ([Int], Int)
+moveLineWithScore xs = 
+  let noZeros = filter (/= 0) xs
+      (merged, score) = merge noZeros
+      padded = merged ++ replicate (boardSize - length merged) 0
+  in (padded, score)
   where
     merge (x:y:zs)
-      | x == y = x*2 : merge zs
-      | otherwise = x : merge (y:zs)
-    merge xs = xs
+      | x == y =
+          let (rest, s) = merge zs
+          in ((x * 2) : rest, x * 2 + s)
+      | otherwise =
+          let (rest, s) = merge (y:zs)
+          in (x : rest, s)
+    merge xs = (xs, 0)
 
-moveLeft, moveRight, moveUp, moveDown :: Board -> Board
-moveLeft = map moveLine
-moveRight = map (reverse . moveLine . reverse)
-moveUp = rotateBoard . rotateBoard . rotateBoard . moveLeft . rotateBoard
-moveDown = rotateBoard . moveLeft . rotateBoard . rotateBoard . rotateBoard
+-- aplicando moveLineWithScore em todas as linhas
+moveBoardLeftWithScore :: Board -> (Board, Int)
+moveBoardLeftWithScore b = unzipWithSum (map moveLineWithScore b)
+
+unzipWithSum :: [([Int], Int)] -> (Board, Int)
+unzipWithSum xs = (map fst xs, sum (map snd xs))
+
+-- generalizacao para todas as direcoes
+moveWithScore :: Int -> Board -> (Board, Int)
+moveWithScore dir board =
+  case dir of
+    37 -> moveBoardLeftWithScore board
+    39 -> let (b, s) = moveBoardLeftWithScore (map reverse board)
+          in (map reverse b, s)
+    38 -> let (b, s) = moveBoardLeftWithScore (rotateBoard board)
+          in (rotateBoard . rotateBoard . rotateBoard $ b, s)
+    40 -> let (b, s) = moveBoardLeftWithScore (rotateBoard . rotateBoard . rotateBoard $ board)
+          in (rotateBoard b, s)
+    _  -> (board, 0)
 
 gameOver :: Board -> Bool
 gameOver b = all (\f -> f b == b) [moveLeft, moveRight, moveUp, moveDown]
+  where
+    moveLeft = map (fst . moveLineWithScore)
+    moveRight = map (reverse . fst . moveLineWithScore . reverse)
+    moveUp = rotateBoard . rotateBoard . rotateBoard . moveLeft . rotateBoard
+    moveDown = rotateBoard . moveLeft . rotateBoard . rotateBoard . rotateBoard
 
 -- Renderiza o tabuleiro
 renderBoard :: Board -> UI Element
@@ -89,36 +114,41 @@ setup board0 window = do
   return window # set UI.title "2048"
 
   boardVar <- liftIO $ newIORef board0
+  scoreVar <- liftIO $ newIORef 0
+  scoreDisplay <- UI.span # set UI.text "Score: 0"
+
   boardView <- renderBoard board0
   body <- getBody window
   container <- UI.div # set UI.style
     [ ("display", "flex")
+    , ("flex-direction", "column")
     , ("justify-content", "center")
     , ("align-items", "center")
-    , ("height", "100vh") -- para centralizar verticalmente
+    , ("height", "100vh")
     ]
 
-  void $ element container #+ [element boardView]
+  void $ element container #+ [element scoreDisplay, element boardView]
   void $ element body #+ [element container]
 
   on UI.keydown body $ \keyCode -> do
     board <- liftIO $ readIORef boardVar
-    let moveFn = case keyCode of
-          37 -> moveLeft
-          38 -> moveUp
-          39 -> moveRight
-          40 -> moveDown
-          _  -> id
-    let newBoard = moveFn board
+    let (newBoard, points) = moveWithScore keyCode board
+
     if newBoard == board then return () else do
+      liftIO $ modifyIORef scoreVar (+ points)
+
       b2 <- liftIO $ addRandomTile newBoard
       liftIO $ writeIORef boardVar b2
+
       void $ element boardView # set children []
       newView <- renderBoard b2
       void $ element boardView #+ [element newView]
 
       when (any (elem 2048) b2) $ showAlert window "Você venceu!"
       when (gameOver b2) $ showAlert window "Game Over!"
+
+      newScore <- liftIO $ readIORef scoreVar
+      void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)
 
 main :: IO ()
 main = do

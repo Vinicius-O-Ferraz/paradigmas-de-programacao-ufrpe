@@ -138,6 +138,7 @@ showLoginBox window msg = do
     , ("flex-direction", "row")
     , ("justify-content", "center")
     , ("padding", "1vh")
+    , ("cursor", "pointer")
     ]
 
   userEntry <- UI.entry (pure "")
@@ -173,6 +174,7 @@ setup board0 window = do
 
   boardVar <- liftIO $ newIORef board0
   scoreVar <- liftIO $ newIORef 0
+  userDisplay <- UI.span # set UI.text "Olá, user!"
   loginDisplay <- UI.button #. "button" #+ [string "Login"]
   cadastroDisplay <- UI.button #. "button" #+ [string "Cadastro"]
   scoreDisplay <- UI.span # set UI.text "Score: 0"
@@ -183,7 +185,9 @@ setup board0 window = do
     [ ("display", "flex")
     , ("flex-direction", "row")
     , ("justify-content", "center")
+    , ("gap", "50px")
     , ("padding", "2vh")
+    , ("cursor", "pointer")
     ]
   container <- UI.div # set UI.style
     [ ("display", "flex")
@@ -195,7 +199,7 @@ setup board0 window = do
     ]
 
   void $ element buttons #+ [element loginDisplay, element cadastroDisplay]
-  void $ element container #+ [element buttons, element scoreDisplay, element boardView]
+  void $ element container #+ [element userDisplay, element buttons, element scoreDisplay, element boardView]
   void $ element body #+ [element container]
 
   on UI.keydown body $ \keyCode -> do

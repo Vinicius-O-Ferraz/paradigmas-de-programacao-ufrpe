@@ -9,12 +9,14 @@ import GHC.Generics (Constructor(conName))
 import Crypto.BCrypt (validatePassword)
 import Crypto.BCrypt (hashPasswordUsingPolicy, slowerBcryptHashingPolicy)
 import qualified Data.ByteString.Char8 as BS
+import Data.Aeson (ToJSON, FromJSON)
 
 data User = User {
   userId:: Int,
   userName:: String,
-  userPassword :: String
-} deriving (Eq, Show, FromRow, ToRow, Generic)
+  userPassword :: String,
+  userScore :: Int
+} deriving (Eq, Show, FromRow, ToRow, Generic, ToJSON, FromJSON)
 
 getConn :: IO Connection 
 getConn = open "servantDB"
@@ -26,19 +28,19 @@ fetchUserQ = do
   close conn
   pure userList
 
-insertUserQ :: User -> IO ()
+insertUserQ :: (String, String, Int) -> IO ()
 insertUserQ user = do
   conn <- getConn
-  execute conn execute conn "insert into users (user_name, user_password) values (?,?)" (name, pass)
+  execute conn "insert into users (user_name, user_password, user_score) values (?,?,?)" user
   close conn
 
-insertUserHashed :: String -> String -> IO ()
-insertUserHashed name pass = do
+insertUserHashed :: String -> String -> Int -> IO ()
+insertUserHashed name pass score = do
   let passBS = BS.pack pass
   maybeHash <- hashPasswordUsingPolicy slowerBcryptHashingPolicy passBS
   case maybeHash of
     Nothing   -> putStrLn "Erro ao gerar hash da senha!"
-    Just hash -> insertUserQ (name, BS.unpack hash)
+    Just hash -> insertUserQ (name, BS.unpack hash, score)
 
 checkLogin :: String -> String -> IO Bool
 checkLogin name pass = do

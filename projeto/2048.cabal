@@ -66,7 +66,7 @@ executable 2048
 
 
     -- Other library packages from which modules are imported.
-    build-depends: base, threepenny-gui, containers, random, sqlite-simple, servant-server, bcrypt
+    build-depends: base, threepenny-gui, containers, random, sqlite-simple, servant-server, bcrypt, bytestring, warp, aeson, wai
 
 
     -- Directories containing source files.

@@ -1,9 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo #-}
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef
-import Data.List (transpose)
+import Data.List (transpose, isPrefixOf)
 import System.Random (randomRIO)
+import Prelude hiding (lookup)
+import qualified Data.Map as Map
+
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
 
@@ -109,25 +113,93 @@ showAlert window msg = do
   body <- getBody window
   void $ element body #+ [element alertBox]
 
+showLoginBox :: Window -> String -> UI ()
+showLoginBox window msg = do
+  loginBox <- UI.div # set UI.text msg
+                     # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
+                                     ("border", "1px solid #888"),
+                                     ("border-radius", "8px"),
+                                     ("padding", "30px"),
+                                     ("margin", "30px"),  
+                                     ("width", "200px"), 
+                                     ("max-width", "80%"), 
+                                     ("text-align", "center"),
+                                     ("font-size", "10px"),
+                                     ("position", "fixed"),
+                                     ("top", "50%"),
+                                     ("left", "50%"),
+                                     ("transform", "translate(-50%, -50%)"),
+                                     ("z-index", "1000"),
+                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)"),
+                                     ("font-family", "Inter, sans-serif")]
+
+  buttons <- UI.div # set UI.style
+    [ ("display", "flex")
+    , ("flex-direction", "row")
+    , ("justify-content", "center")
+    , ("padding", "1vh")
+    , ("cursor", "pointer")
+    ]
+
+  userEntry <- UI.entry (pure "")
+  passEntry <- UI.entry (pure "")
+  _ <- element passEntry # set (attr "type") "password"
+
+  loginBtn  <- UI.button #+ [string "Entrar"]
+
+  element loginBox #+ 
+      [ UI.column
+          [ UI.row [string "Usuário: ", element userEntry]
+          , UI.row [string "Senha: ", element passEntry]
+          , element loginBtn
+          ]
+      ]
+
+  on UI.click loginBtn $ \_ -> do
+      username <- get UI.value (getElement userEntry)
+      password <- get UI.value (getElement passEntry)
+      liftIO $ putStrLn $ "Usuário: " ++ username ++ ", Senha: " ++ password                       
+
+  closeBtn <- UI.button # set UI.text "Fechar"
+  on UI.click closeBtn $ \_ -> UI.delete loginBox
+  element loginBox #+ [element closeBtn]
+
+  body <- getBody window
+  void $ element loginBox #+ [element buttons, element closeBtn]
+  void $ element body #+ [element loginBox]
+
 setup :: Board -> Window -> UI ()
 setup board0 window = do
   return window # set UI.title "2048"
 
   boardVar <- liftIO $ newIORef board0
   scoreVar <- liftIO $ newIORef 0
+  userDisplay <- UI.span # set UI.text "Olá, user!"
+  loginDisplay <- UI.button #. "button" #+ [string "Login"]
+  cadastroDisplay <- UI.button #. "button" #+ [string "Cadastro"]
   scoreDisplay <- UI.span # set UI.text "Score: 0"
 
   boardView <- renderBoard board0
   body <- getBody window
+  buttons <- UI.div # set UI.style
+    [ ("display", "flex")
+    , ("flex-direction", "row")
+    , ("justify-content", "center")
+    , ("gap", "50px")
+    , ("padding", "2vh")
+    , ("cursor", "pointer")
+    ]
   container <- UI.div # set UI.style
     [ ("display", "flex")
     , ("flex-direction", "column")
     , ("justify-content", "center")
     , ("align-items", "center")
     , ("height", "100vh")
+    , ("overflow ", "hidden")
     ]
 
-  void $ element container #+ [element scoreDisplay, element boardView]
+  void $ element buttons #+ [element loginDisplay, element cadastroDisplay]
+  void $ element container #+ [element userDisplay, element buttons, element scoreDisplay, element boardView]
   void $ element body #+ [element container]
 
   on UI.keydown body $ \keyCode -> do
@@ -146,6 +218,12 @@ setup board0 window = do
 
       when (any (elem 2048) b2) $ showAlert window "Você venceu!"
       when (gameOver b2) $ showAlert window "Game Over!"
+
+      on UI.click loginDisplay $ \_ -> do 
+        showLoginBox window ""
+
+      on UI.click cadastroDisplay $ \_ -> do 
+        showLoginBox window "" 
 
       newScore <- liftIO $ readIORef scoreVar
       void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)

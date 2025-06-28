@@ -11,6 +11,8 @@ import qualified Data.Map as Map
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
 
+import CRUD.Core
+
 type Board = [[Int]]
 boardSize :: Int
 boardSize = 4
@@ -156,10 +158,27 @@ showLoginBox window msg = do
       ]
 
   on UI.click loginBtn $ \_ -> do
-      username <- get UI.value (getElement userEntry)
-      password <- get UI.value (getElement passEntry)
-      liftIO $ putStrLn $ "Usuário: " ++ username ++ ", Senha: " ++ password                       
+    username <- get UI.value (getElement userEntry)
+    password <- get UI.value (getElement passEntry)
 
+    let jsCode = mconcat
+          [ "fetch('http://localhost:8080/login', {"
+          , "method: 'POST',"
+          , "headers: { 'Content-Type': 'application/json' },"
+          , "body: JSON.stringify({ loginName: '", username, "', loginPassword: '", password, "' })"
+         , "})"
+         , ".then(response => response.json())"
+         , ".then(success => {"
+         , "  if (success) {"
+         , "    document.getElementById('userDisplay').innerText = 'Olá, ", username, "!';"
+         , "  } else {"
+         , "    alert('Login falhou!');"
+         , "  }"
+         , "});"
+         ]
+
+    runFunction $ ffi jsCode
+           
   closeBtn <- UI.button # set UI.text "Fechar"
   on UI.click closeBtn $ \_ -> UI.delete loginBox
   element loginBox #+ [element closeBtn]
@@ -174,7 +193,7 @@ setup board0 window = do
 
   boardVar <- liftIO $ newIORef board0
   scoreVar <- liftIO $ newIORef 0
-  userDisplay <- UI.span # set UI.text "Olá, user!"
+  userDisplay <- UI.span # set UI.text "" # set UI.id_ "userDisplay"
   loginDisplay <- UI.button #. "button" #+ [string "Login"]
   cadastroDisplay <- UI.button #. "button" #+ [string "Cadastro"]
   scoreDisplay <- UI.span # set UI.text "Score: 0"

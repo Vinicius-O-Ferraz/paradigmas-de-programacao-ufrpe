@@ -11,6 +11,8 @@ import qualified Data.Map as Map
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
 
+import CRUD.Core
+
 type Board = [[Int]]
 boardSize :: Int
 boardSize = 4
@@ -118,7 +120,98 @@ showLoginBox window msg = do
   loginBox <- UI.div # set UI.text msg
                      # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
                                      ("border", "1px solid #888"),
+                                     ("display", "flex"),
+                                     ("gap", "20px"),
                                      ("border-radius", "8px"),
+                                     ("padding", "30px"),
+                                     ("margin", "30px"),  
+                                     ("width", "200px"), 
+                                     ("max-width", "80%"), 
+                                     ("text-align", "center"),
+                                     ("font-size", "12px"),
+                                     ("position", "fixed"),
+                                     ("top", "50%"),
+                                     ("left", "50%"),
+                                     ("transform", "translate(-50%, -50%)"),
+                                     ("z-index", "1000"),
+                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)"),
+                                     ("font-family", "Inter, sans-serif")]
+
+  buttons <- UI.div # set UI.style
+    [ ("display", "flex")
+    , ("flex-direction", "row")
+    , ("margin-left", "10px")
+    , ("justify-content", "center")
+    , ("padding", "1vh")
+    , ("cursor", "pointer")
+    ]
+
+  userEntry <- UI.entry (pure "")
+  passEntry <- UI.entry (pure "")
+  _ <- element passEntry # set (attr "type") "password"
+
+  loginBtn  <- UI.button #+ [string "Entrar"]
+  sairBtn  <- UI.button #+ [string "Sair"]
+
+  element loginBox #+ 
+      [ UI.column
+          [ UI.row [string "Login"]
+          , UI.row [string "Usuário: ", element userEntry]
+          , UI.row [string "Senha: ", element passEntry]
+          , UI.row [element loginBtn]
+          , UI.row [element sairBtn]
+          ]
+      ]
+
+  on UI.click loginBtn $ \_ -> do
+    username <- get UI.value (getElement userEntry)
+    password <- get UI.value (getElement passEntry)
+
+    let jsCode = mconcat
+          [ "fetch('http://localhost:8080/login', {"
+          , "method: 'POST',"
+          , "headers: { 'Content-Type': 'application/json' },"
+          , "body: JSON.stringify({ loginName: '", username, "', loginPassword: '", password, "' })"
+          , "})"
+          , ".then(response => response.json())"
+          , ".then(success => {"
+          , "if (success) {"
+          , "  document.getElementById('userDisplay').innerText = 'Olá, ", username, "!';"
+          , "  localStorage.setItem('user', JSON.stringify({ username: '", username, "' }));"
+          , "  console.log('oi');"
+          , "} else {"
+          , "  alert('Usuário não existe ou senha incorreta!');"
+          , "}"
+         , "});"
+         ]
+
+    runFunction $ ffi jsCode
+
+  on UI.click sairBtn $ \_ -> do
+
+    let jsCode = mconcat
+          [ "  document.getElementById('userDisplay').innerText = '';"
+          , "  localStorage.removeItem('user');"
+         ]
+
+    runFunction $ ffi jsCode
+           
+  closeBtn <- UI.button # set UI.text "Fechar"
+  on UI.click closeBtn $ \_ -> UI.delete loginBox
+  element loginBox #+ [element closeBtn]
+
+  body <- getBody window
+  void $ element loginBox #+ [element buttons, element closeBtn]
+  void $ element body #+ [element loginBox]
+
+showCadastroBox :: Window -> String -> UI ()
+showCadastroBox window msg = do
+  cadastroBox <- UI.div # set UI.text msg
+                     # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
+                                     ("border", "1px solid #888"),
+                                     ("border-radius", "8px"),
+                                     ("display", "flex"),
+                                     ("gap", "20px"),
                                      ("padding", "30px"),
                                      ("margin", "30px"),  
                                      ("width", "200px"), 
@@ -141,32 +234,51 @@ showLoginBox window msg = do
     , ("cursor", "pointer")
     ]
 
-  userEntry <- UI.entry (pure "")
-  passEntry <- UI.entry (pure "")
-  _ <- element passEntry # set (attr "type") "password"
+  userCadastroEntry <- UI.entry (pure "")
+  passCadastroEntry <- UI.entry (pure "")
+  _ <- element passCadastroEntry # set (attr "type") "password"
 
-  loginBtn  <- UI.button #+ [string "Entrar"]
+  cadastroBtn  <- UI.button #+ [string "Cadastrar"]
 
-  element loginBox #+ 
+  element cadastroBox #+ 
       [ UI.column
-          [ UI.row [string "Usuário: ", element userEntry]
-          , UI.row [string "Senha: ", element passEntry]
-          , element loginBtn
+          [ UI.row [string "Cadastro"]
+          , UI.row [string "Usuário: ", element userCadastroEntry]
+          , UI.row [string "Senha: ", element passCadastroEntry]
+          , element cadastroBtn
           ]
       ]
 
-  on UI.click loginBtn $ \_ -> do
-      username <- get UI.value (getElement userEntry)
-      password <- get UI.value (getElement passEntry)
-      liftIO $ putStrLn $ "Usuário: " ++ username ++ ", Senha: " ++ password                       
+  on UI.click cadastroBtn $ \_ -> do
+    username <- get UI.value (getElement userCadastroEntry)
+    password <- get UI.value (getElement passCadastroEntry)
+    let score = "0"
 
+    let jsCode = mconcat
+          [ "fetch('http://localhost:8080/users', {"
+          , "method: 'POST',"
+          , "headers: { 'Content-Type': 'application/json' },"
+          , "body: JSON.stringify({ userName: '", username, "', userPassword: '", password, "', userScore: ", score, "})"
+          , "})"
+          , ".then(response => response.json())"
+          , ".then(success => {"
+          , "if (success) {"
+          , "  alert('Cadastro sucedido');"
+          , "} else {"
+          , "  alert('Cadastro não sucedido');"
+          , "}"
+         , "});"
+         ]
+
+    runFunction $ ffi jsCode
+           
   closeBtn <- UI.button # set UI.text "Fechar"
-  on UI.click closeBtn $ \_ -> UI.delete loginBox
-  element loginBox #+ [element closeBtn]
+  on UI.click closeBtn $ \_ -> UI.delete cadastroBox
+  element cadastroBox #+ [element closeBtn]
 
   body <- getBody window
-  void $ element loginBox #+ [element buttons, element closeBtn]
-  void $ element body #+ [element loginBox]
+  void $ element cadastroBox #+ [element buttons, element closeBtn]
+  void $ element body #+ [element cadastroBox]
 
 setup :: Board -> Window -> UI ()
 setup board0 window = do
@@ -174,7 +286,7 @@ setup board0 window = do
 
   boardVar <- liftIO $ newIORef board0
   scoreVar <- liftIO $ newIORef 0
-  userDisplay <- UI.span # set UI.text "Olá, user!"
+  userDisplay <- UI.span # set UI.text "" # set UI.id_ "userDisplay"
   loginDisplay <- UI.button #. "button" #+ [string "Login"]
   cadastroDisplay <- UI.button #. "button" #+ [string "Cadastro"]
   scoreDisplay <- UI.span # set UI.text "Score: 0"
@@ -223,7 +335,7 @@ setup board0 window = do
         showLoginBox window ""
 
       on UI.click cadastroDisplay $ \_ -> do 
-        showLoginBox window "" 
+        showCadastroBox window "" 
 
       newScore <- liftIO $ readIORef scoreVar
       void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)

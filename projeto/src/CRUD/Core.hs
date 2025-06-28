@@ -8,6 +8,7 @@ module CRUD.Core where
 
 import Network.Wai
 import Network.Wai.Handler.Warp
+import Network.Wai.Middleware.Cors (cors, simpleCorsResourcePolicy, CorsResourcePolicy(..))
 import Servant
 import Data.Aeson (FromJSON)
 import GHC.Generics
@@ -50,5 +51,11 @@ login(LoginRequest name pass) = do
 app :: Application
 app = serve (Proxy :: Proxy UserAPI) server
 
-main :: IO ()
-main = run 8080 app
+mainServer :: IO ()
+mainServer = run 8080 (cors (const $ Just policy) app)
+  where
+    policy = simpleCorsResourcePolicy
+      { corsOrigins = Just (["http://127.0.0.1:8023"], True)
+      , corsRequestHeaders = ["Content-Type"]
+      , corsMethods = ["GET", "POST", "OPTIONS"]
+      }

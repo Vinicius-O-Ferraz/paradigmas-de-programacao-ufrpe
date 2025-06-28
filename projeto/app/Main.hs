@@ -120,13 +120,15 @@ showLoginBox window msg = do
   loginBox <- UI.div # set UI.text msg
                      # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
                                      ("border", "1px solid #888"),
+                                     ("display", "flex"),
+                                     ("gap", "20px"),
                                      ("border-radius", "8px"),
                                      ("padding", "30px"),
                                      ("margin", "30px"),  
                                      ("width", "200px"), 
                                      ("max-width", "80%"), 
                                      ("text-align", "center"),
-                                     ("font-size", "10px"),
+                                     ("font-size", "12px"),
                                      ("position", "fixed"),
                                      ("top", "50%"),
                                      ("left", "50%"),
@@ -138,6 +140,7 @@ showLoginBox window msg = do
   buttons <- UI.div # set UI.style
     [ ("display", "flex")
     , ("flex-direction", "row")
+    , ("margin-left", "10px")
     , ("justify-content", "center")
     , ("padding", "1vh")
     , ("cursor", "pointer")
@@ -148,13 +151,15 @@ showLoginBox window msg = do
   _ <- element passEntry # set (attr "type") "password"
 
   loginBtn  <- UI.button #+ [string "Entrar"]
+  sairBtn  <- UI.button #+ [string "Sair"]
 
   element loginBox #+ 
       [ UI.column
           [ UI.row [string "Login"]
           , UI.row [string "Usuário: ", element userEntry]
           , UI.row [string "Senha: ", element passEntry]
-          , element loginBtn
+          , UI.row [element loginBtn]
+          , UI.row [element sairBtn]
           ]
       ]
 
@@ -181,6 +186,15 @@ showLoginBox window msg = do
          ]
 
     runFunction $ ffi jsCode
+
+  on UI.click sairBtn $ \_ -> do
+
+    let jsCode = mconcat
+          [ "  document.getElementById('userDisplay').innerText = '';"
+          , "  localStorage.removeItem('user');"
+         ]
+
+    runFunction $ ffi jsCode
            
   closeBtn <- UI.button # set UI.text "Fechar"
   on UI.click closeBtn $ \_ -> UI.delete loginBox
@@ -196,6 +210,8 @@ showCadastroBox window msg = do
                      # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
                                      ("border", "1px solid #888"),
                                      ("border-radius", "8px"),
+                                     ("display", "flex"),
+                                     ("gap", "20px"),
                                      ("padding", "30px"),
                                      ("margin", "30px"),  
                                      ("width", "200px"), 

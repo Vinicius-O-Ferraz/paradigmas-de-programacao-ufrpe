@@ -24,3 +24,27 @@ De maneira geral, foi uma experiência bastante interessante utilizar a programa
 
 
 ![Vídeo-sem-título-‐-Feito-com-o-Clipchamp](https://github.com/user-attachments/assets/e8344381-bbf7-41e6-9599-11674bc80a80)
+
+
+# Uso de IA 
+
+Ryan Eskinazi: 
+
+Durante o desenvolvimento da funcionalidade de pontuação do jogo, implementei uma estratégia baseada na diferença entre a soma do tabuleiro antes e depois de um movimento. A lógica era:
+
+```haskell
+scoreFromBoards old new = sum (concat new) - sum (concat old)
+```
+Apesar de funcionar parcialmente, percebi que a pontuação não mostrava corretamente as "fusões", já que a função addRandomTile adicionava peças que alteravam a soma total.
+
+Com ajuda do ChatGPT 4o, identifiquei que a forma certa era capturar os pontos durante a fusão das peças, reestruturando a função de movimentação para retornar o novo tabuleiro e a pontuação da jogada. A IA me ajudou a reorganizar a função moveLine para retornar um par (novaLinha, pontosObtidos) e integrar isso na UI.
+
+A exibição do score foi implementada usando UI.span, e a atualização do texto após cada jogada foi feita com:
+
+```haskell
+void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)
+```
+
+O prompt usado foi: 
+"estou trabalhando no desenvolvimento do jogo 2048 em haskell. calculei a pontuação com 'scoreFromBoards old new = sum (concat new) - sum (concat old)', mas o score não está correto depois de cada jogada. o que pode estar errado?" seguido do trecho de codigo que queria depurar
+

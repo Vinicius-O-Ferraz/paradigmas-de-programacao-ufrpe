@@ -126,6 +126,10 @@ policy = simpleCorsResourcePolicy
 , corsMethods = ["GET", "POST", "OPTIONS"]
 }
 
+## Arthur Seabra:
+Utilizei o Gemini 2.5 Pro para lidar com a falta de documentação da ThreePenny-Gui e me ajudar a lidar com a implementação do /leaderboard, já que possuo pouca familiaridade com JavaScript.
+Também foi muito útil durante o processo de teste, ocasionalmente esbarrei em erros com o cabal, e o Gemini me guiou muito bem em relação a como consertar os erros pelo terminal.
+
 # Como executar o código
 
 Em primeiro lugar, se faz necessário ter instalado o Cabal e o GHCi. A documentação oficial de instalação pode ser encontrada em: https://www.haskell.org/cabal/ para o Cabal e https://www.haskell.org/ghc/ para o GHC e o GHCi.

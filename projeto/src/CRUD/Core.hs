@@ -1,8 +1,10 @@
+-- File: src/CRUD/Core.hs
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module CRUD.Core where
 
@@ -10,7 +12,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.Wai.Middleware.Cors (cors, simpleCorsResourcePolicy, CorsResourcePolicy(..))
 import Servant
-import Data.Aeson (FromJSON)
+import Data.Aeson (FromJSON, ToJSON(..), object, (.=))
 import GHC.Generics
 import Data.Proxy
 import Control.Monad.IO.Class (liftIO)
@@ -23,20 +25,39 @@ data NewUser = NewUser {
   userScore :: Int
 } deriving (Generic, FromJSON)
 
-data LoginRequest = LoginRequest { 
+data LoginRequest = LoginRequest {
   loginName     :: String,
   loginPassword :: String
 } deriving (Generic, FromJSON)
+
+data Leaderboard = Leaderboard { players :: [User] }
+  deriving (Generic, FromJSON)
+
+instance ToJSON Leaderboard where
+  toJSON (Leaderboard ps) = object ["players" .= ps]
 
 type UserAPI =
        "users" :> Get '[JSON] [User]
   :<|> "users" :> ReqBody '[JSON] NewUser :> Post '[JSON] ()
   :<|> "login" :> ReqBody '[JSON] LoginRequest :> Post '[JSON] Bool
+  :<|> "leaderboard" :> Get '[JSON] Leaderboard
+
+fetchTopUsers :: Handler Leaderboard
+fetchTopUsers = do
+  userList <- liftIO fetchTopUsersQ
+  liftIO $ putStrLn "\n---[ DEBUG PÓDIO ACIONADO ]---"
+  liftIO $ putStrLn "Top 5 usuários retornados do banco de dados:"
+  liftIO $ mapM_ printUser userList
+  liftIO $ putStrLn "---------------------------------\n"
+  return $ Leaderboard { players = userList }
+  where
+    printUser (User _ name _ score) = putStrLn $ "  -> Nome: " ++ name ++ ", Recorde: " ++ show score
 
 server :: Server UserAPI
 server = fetchUser
     :<|> insertUser
     :<|> login
+    :<|> fetchTopUsers
 
 fetchUser :: Handler [User]
 fetchUser = liftIO fetchUserQ

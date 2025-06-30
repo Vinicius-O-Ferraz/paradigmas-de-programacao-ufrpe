@@ -1,5 +1,11 @@
+-- File: app/Main.hs
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
+module Main where
+
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef
@@ -7,11 +13,16 @@ import Data.List (transpose, isPrefixOf)
 import System.Random (randomRIO)
 import Prelude hiding (lookup)
 import qualified Data.Map as Map
+import GHC.Generics (Generic)
 
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core
 
-import CRUD.Core
+import CRUD.Query (User(..))
+import Data.Aeson
+
+data Leaderboard = Leaderboard { players :: [User] }
+  deriving (Generic, FromJSON)
 
 type Board = [[Int]]
 boardSize :: Int
@@ -39,9 +50,8 @@ addRandomTile board = do
 rotateBoard :: Board -> Board
 rotateBoard = reverse . transpose
 
--- move e calcula a pontuacao de uma linha
 moveLineWithScore :: [Int] -> ([Int], Int)
-moveLineWithScore xs = 
+moveLineWithScore xs =
   let noZeros = filter (/= 0) xs
       (merged, score) = merge noZeros
       padded = merged ++ replicate (boardSize - length merged) 0
@@ -56,14 +66,12 @@ moveLineWithScore xs =
           in (x : rest, s)
     merge xs = (xs, 0)
 
--- aplicando moveLineWithScore em todas as linhas
 moveBoardLeftWithScore :: Board -> (Board, Int)
 moveBoardLeftWithScore b = unzipWithSum (map moveLineWithScore b)
 
 unzipWithSum :: [([Int], Int)] -> (Board, Int)
 unzipWithSum xs = (map fst xs, sum (map snd xs))
 
--- generalizacao para todas as direcoes
 moveWithScore :: Int -> Board -> (Board, Int)
 moveWithScore dir board =
   case dir of
@@ -84,7 +92,6 @@ gameOver b = all (\f -> f b == b) [moveLeft, moveRight, moveUp, moveDown]
     moveUp = rotateBoard . rotateBoard . rotateBoard . moveLeft . rotateBoard
     moveDown = rotateBoard . moveLeft . rotateBoard . rotateBoard . rotateBoard
 
--- Renderiza o tabuleiro
 renderBoard :: Board -> UI Element
 renderBoard board = UI.div # set UI.style [("display", "inline-block"), ("font-family", "monospace")] #+
   [ UI.div # set UI.style [("display", "flex")] #+
@@ -107,177 +114,144 @@ showAlert window msg = do
                                      ("top", "40%"),
                                      ("left", "40%"),
                                      ("z-index", "1000")]
-
   closeBtn <- UI.button # set UI.text "Fechar"
   on UI.click closeBtn $ \_ -> UI.delete alertBox
   element alertBox #+ [element closeBtn]
-
   body <- getBody window
   void $ element body #+ [element alertBox]
 
-showLoginBox :: Window -> String -> UI ()
-showLoginBox window msg = do
-  loginBox <- UI.div # set UI.text msg
-                     # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
+showPodiumBox :: Window -> [User] -> UI ()
+showPodiumBox window users = do
+  podiumBox <- UI.div # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
                                      ("border", "1px solid #888"),
-                                     ("display", "flex"),
-                                     ("gap", "20px"),
                                      ("border-radius", "8px"),
-                                     ("padding", "30px"),
-                                     ("margin", "30px"),  
-                                     ("width", "200px"), 
-                                     ("max-width", "80%"), 
+                                     ("padding", "20px"),
+                                     ("width", "300px"),
                                      ("text-align", "center"),
-                                     ("font-size", "12px"),
                                      ("position", "fixed"),
                                      ("top", "50%"),
                                      ("left", "50%"),
                                      ("transform", "translate(-50%, -50%)"),
                                      ("z-index", "1000"),
-                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)"),
-                                     ("font-family", "Inter, sans-serif")]
-
-  buttons <- UI.div # set UI.style
-    [ ("display", "flex")
-    , ("flex-direction", "row")
-    , ("margin-left", "10px")
-    , ("justify-content", "center")
-    , ("padding", "1vh")
-    , ("cursor", "pointer")
+                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)")]
+  userListItems <- mapM (renderUser) (zip [1..] users)
+  userList <- UI.mkElement "ol" #+ (map UI.element userListItems)
+  closeBtn <- UI.button # set UI.text "Fechar"
+  on UI.click closeBtn $ \_ -> UI.delete podiumBox
+  element podiumBox #+
+    [ UI.h3 #+ [string "Pódio de Melhores Jogadores"]
+    , element userList
+    , element closeBtn
     ]
+  body <- getBody window
+  void $ element body #+ [element podiumBox]
+  where
+    renderUser (rank, User _ name _ score) =
+      UI.li # set UI.style [("text-align", "left"), ("margin-bottom", "5px")] #+
+        [string (show rank ++ ". " ++ name ++ " - Recorde: " ++ show score)]
 
-  userEntry <- UI.entry (pure "")
-  passEntry <- UI.entry (pure "")
-  _ <- element passEntry # set (attr "type") "password"
+showLoginBox :: Window -> String -> UI ()
+showLoginBox window msg = do
+  -- Elementos da UI
+  loginBox    <- UI.div # set UI.text msg
+  userEntry   <- UI.entry (pure "")
+  -- ALTERADO: Criação do campo de senha separada da modificação de atributo
+  passEntry   <- UI.entry (pure "")
+  void $ element passEntry # set (attr "type") "password"
 
-  loginBtn  <- UI.button #+ [string "Entrar"]
-  sairBtn  <- UI.button #+ [string "Sair"]
+  loginBtn    <- UI.button #+ [string "Entrar"]
+  sairBtn     <- UI.button #+ [string "Sair"]
+  closeBtn    <- UI.button #+ [string "Fechar"]
 
-  element loginBox #+ 
+  -- Composição do Layout
+  element loginBox #+
       [ UI.column
           [ UI.row [string "Login"]
           , UI.row [string "Usuário: ", element userEntry]
           , UI.row [string "Senha: ", element passEntry]
-          , UI.row [element loginBtn]
-          , UI.row [element sairBtn]
+          , UI.row [element loginBtn, element sairBtn, element closeBtn]
           ]
       ]
 
+  -- Estilo
+  void $ element loginBox # set UI.style
+    [("background-color", "rgba(255, 255, 170, 0.9)"), ("border-radius", "8px"), ("padding", "20px"),
+     ("position", "fixed"), ("top", "50%"), ("left", "50%"), ("transform", "translate(-50%, -50%)"),
+     ("z-index", "1000"), ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)")]
+
+  -- Comportamento dos botões
   on UI.click loginBtn $ \_ -> do
     username <- get UI.value (getElement userEntry)
     password <- get UI.value (getElement passEntry)
-
     let jsCode = mconcat
-          [ "fetch('http://localhost:8080/login', {"
-          , "method: 'POST',"
-          , "headers: { 'Content-Type': 'application/json' },"
-          , "body: JSON.stringify({ loginName: '", username, "', loginPassword: '", password, "' })"
-          , "})"
-          , ".then(response => response.json())"
-          , ".then(success => {"
-          , "if (success) {"
-          , "  document.getElementById('userDisplay').innerText = 'Olá, ", username, "!';"
-          , "  localStorage.setItem('user', JSON.stringify({ username: '", username, "' }));"
-          , "  console.log('oi');"
-          , "} else {"
-          , "  alert('Usuário não existe ou senha incorreta!');"
-          , "}"
-         , "});"
-         ]
-
+          [ "fetch('http://localhost:8080/login', {",
+            "method: 'POST', headers: { 'Content-Type': 'application/json' },",
+            "body: JSON.stringify({ loginName: '", username, "', loginPassword: '", password, "' })",
+            "}).then(response => response.json()).then(success => {",
+            "if (success) {",
+            "  document.getElementById('userDisplay').innerText = 'Olá, ", username, "!';",
+            "  localStorage.setItem('user', JSON.stringify({ username: '", username, "' }));",
+            "} else { alert('Usuário não existe ou senha incorreta!'); }",
+            "});" ]
     runFunction $ ffi jsCode
+    UI.delete loginBox -- Fecha a janela após a tentativa
 
   on UI.click sairBtn $ \_ -> do
-
-    let jsCode = mconcat
-          [ "  document.getElementById('userDisplay').innerText = '';"
-          , "  localStorage.removeItem('user');"
-         ]
-
+    let jsCode = "document.getElementById('userDisplay').innerText = ''; localStorage.removeItem('user');"
     runFunction $ ffi jsCode
-           
-  closeBtn <- UI.button # set UI.text "Fechar"
-  on UI.click closeBtn $ \_ -> UI.delete loginBox
-  element loginBox #+ [element closeBtn]
+    UI.delete loginBox -- Fecha a janela
 
+  on UI.click closeBtn $ \_ -> UI.delete loginBox
+
+  -- Adiciona o elemento final ao corpo da página
   body <- getBody window
-  void $ element loginBox #+ [element buttons, element closeBtn]
   void $ element body #+ [element loginBox]
 
 showCadastroBox :: Window -> String -> UI ()
 showCadastroBox window msg = do
-  cadastroBox <- UI.div # set UI.text msg
-                     # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
-                                     ("border", "1px solid #888"),
-                                     ("border-radius", "8px"),
-                                     ("display", "flex"),
-                                     ("gap", "20px"),
-                                     ("padding", "30px"),
-                                     ("margin", "30px"),  
-                                     ("width", "200px"), 
-                                     ("max-width", "80%"), 
-                                     ("text-align", "center"),
-                                     ("font-size", "10px"),
-                                     ("position", "fixed"),
-                                     ("top", "50%"),
-                                     ("left", "50%"),
-                                     ("transform", "translate(-50%, -50%)"),
-                                     ("z-index", "1000"),
-                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)"),
-                                     ("font-family", "Inter, sans-serif")]
+  -- Elementos da UI
+  cadastroBox   <- UI.div # set UI.text msg
+  userEntry     <- UI.entry (pure "")
+  -- ALTERADO: Criação do campo de senha separada da modificação de atributo
+  passEntry     <- UI.entry (pure "")
+  void $ element passEntry # set (attr "type") "password"
 
-  buttons <- UI.div # set UI.style
-    [ ("display", "flex")
-    , ("flex-direction", "row")
-    , ("justify-content", "center")
-    , ("padding", "1vh")
-    , ("cursor", "pointer")
-    ]
+  cadastroBtn   <- UI.button #+ [string "Cadastrar"]
+  closeBtn      <- UI.button #+ [string "Fechar"]
 
-  userCadastroEntry <- UI.entry (pure "")
-  passCadastroEntry <- UI.entry (pure "")
-  _ <- element passCadastroEntry # set (attr "type") "password"
-
-  cadastroBtn  <- UI.button #+ [string "Cadastrar"]
-
-  element cadastroBox #+ 
+  -- Composição do Layout
+  element cadastroBox #+
       [ UI.column
           [ UI.row [string "Cadastro"]
-          , UI.row [string "Usuário: ", element userCadastroEntry]
-          , UI.row [string "Senha: ", element passCadastroEntry]
-          , element cadastroBtn
+          , UI.row [string "Usuário: ", element userEntry]
+          , UI.row [string "Senha: ", element passEntry]
+          , UI.row [element cadastroBtn, element closeBtn]
           ]
       ]
 
+  -- Estilo
+  void $ element cadastroBox # set UI.style
+    [("background-color", "rgba(255, 255, 170, 0.9)"), ("border-radius", "8px"), ("padding", "20px"),
+     ("position", "fixed"), ("top", "50%"), ("left", "50%"), ("transform", "translate(-50%, -50%)"),
+     ("z-index", "1000"), ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)")]
+
+  -- Comportamento dos botões
   on UI.click cadastroBtn $ \_ -> do
-    username <- get UI.value (getElement userCadastroEntry)
-    password <- get UI.value (getElement passCadastroEntry)
+    username <- get UI.value (getElement userEntry)
+    password <- get UI.value (getElement passEntry)
     let score = "0"
-
     let jsCode = mconcat
-          [ "fetch('http://localhost:8080/users', {"
-          , "method: 'POST',"
-          , "headers: { 'Content-Type': 'application/json' },"
-          , "body: JSON.stringify({ userName: '", username, "', userPassword: '", password, "', userScore: ", score, "})"
-          , "})"
-          , ".then(response => response.json())"
-          , ".then(success => {"
-          , "if (success) {"
-          , "  alert('Cadastro sucedido');"
-          , "} else {"
-          , "  alert('Cadastro não sucedido');"
-          , "}"
-         , "});"
-         ]
-
+          [ "fetch('http://localhost:8080/users', {",
+            "method: 'POST', headers: { 'Content-Type': 'application/json' },",
+            "body: JSON.stringify({ userName: '", username, "', userPassword: '", password, "', userScore: ", score, "})",
+            "}).then(() => { alert('Cadastro sucedido!'); }).catch(() => { alert('Cadastro não sucedido!'); });" ]
     runFunction $ ffi jsCode
-           
-  closeBtn <- UI.button # set UI.text "Fechar"
-  on UI.click closeBtn $ \_ -> UI.delete cadastroBox
-  element cadastroBox #+ [element closeBtn]
+    UI.delete cadastroBox -- Fecha a janela após a tentativa
 
+  on UI.click closeBtn $ \_ -> UI.delete cadastroBox
+
+  -- Adiciona o elemento final ao corpo da página
   body <- getBody window
-  void $ element cadastroBox #+ [element buttons, element closeBtn]
   void $ element body #+ [element cadastroBox]
 
 setup :: Board -> Window -> UI ()
@@ -289,56 +263,43 @@ setup board0 window = do
   userDisplay <- UI.span # set UI.text "" # set UI.id_ "userDisplay"
   loginDisplay <- UI.button #. "button" #+ [string "Login"]
   cadastroDisplay <- UI.button #. "button" #+ [string "Cadastro"]
+  podiumDisplay <- UI.button #. "button" #+ [string "Pódio"]
   scoreDisplay <- UI.span # set UI.text "Score: 0"
-
   boardView <- renderBoard board0
-  body <- getBody window
-  buttons <- UI.div # set UI.style
-    [ ("display", "flex")
-    , ("flex-direction", "row")
-    , ("justify-content", "center")
-    , ("gap", "50px")
-    , ("padding", "2vh")
-    , ("cursor", "pointer")
-    ]
-  container <- UI.div # set UI.style
-    [ ("display", "flex")
-    , ("flex-direction", "column")
-    , ("justify-content", "center")
-    , ("align-items", "center")
-    , ("height", "100vh")
-    , ("overflow ", "hidden")
-    ]
 
-  void $ element buttons #+ [element loginDisplay, element cadastroDisplay]
+  -- Layout principal
+  body <- getBody window
+  buttons <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "row"), ("justify-content", "center"), ("gap", "50px"), ("padding", "2vh"), ("cursor", "pointer")]
+  container <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column"), ("justify-content", "center"), ("align-items", "center"), ("height", "100vh"), ("overflow", "hidden")]
+  void $ element buttons #+ [element loginDisplay, element cadastroDisplay, element podiumDisplay]
   void $ element container #+ [element userDisplay, element buttons, element scoreDisplay, element boardView]
   void $ element body #+ [element container]
 
-  on UI.click loginDisplay $ \_ -> do 
-    showLoginBox window ""
-
-  on UI.click cadastroDisplay $ \_ -> do 
-    showCadastroBox window "" 
-
+  -- Evento de movimento do jogo
   on UI.keydown body $ \keyCode -> do
     board <- liftIO $ readIORef boardVar
     let (newBoard, points) = moveWithScore keyCode board
-
-    if newBoard == board then return () else do
+    when (newBoard /= board) $ do
       liftIO $ modifyIORef scoreVar (+ points)
-
       b2 <- liftIO $ addRandomTile newBoard
       liftIO $ writeIORef boardVar b2
-
       void $ element boardView # set children []
       newView <- renderBoard b2
       void $ element boardView #+ [element newView]
-
       when (any (elem 2048) b2) $ showAlert window "Você venceu!"
       when (gameOver b2) $ showAlert window "Game Over!"
-
       newScore <- liftIO $ readIORef scoreVar
       void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)
+
+  -- Eventos de clique dos botões
+  on UI.click loginDisplay $ \_ -> showLoginBox window ""
+  on UI.click cadastroDisplay $ \_ -> showCadastroBox window ""
+  on UI.click podiumDisplay $ \_ -> do
+    let jsGetLeaderboard = "fetch('http://localhost:8080/leaderboard').then(res => res.json())"
+    jsonValue <- callFunction $ ffi jsGetLeaderboard
+    case fromJSON jsonValue :: Result Leaderboard of
+      Success leaderboardData -> showPodiumBox window (players leaderboardData)
+      Error err               -> showAlert window ("Erro ao carregar o pódio: " ++ err)
 
 main :: IO ()
 main = do

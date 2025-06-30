@@ -66,7 +66,7 @@ executable 2048
 
 
     -- Other library packages from which modules are imported.
-    build-depends: base, threepenny-gui, containers, random, sqlite-simple, servant-server, bcrypt, bytestring, warp, aeson, wai,wai-cors
+    build-depends: base, threepenny-gui, containers, random, sqlite-simple, servant-server, bcrypt, bytestring, warp, aeson, wai, wai-cors, text
 
 
     -- Directories containing source files.
@@ -74,4 +74,7 @@ executable 2048
 
     -- Base language which the package is written in.
     default-language: Haskell2010
-    
+
+    --tentando resolver os warnings
+    other-modules:    CRUD.Core
+                    , CRUD.Query

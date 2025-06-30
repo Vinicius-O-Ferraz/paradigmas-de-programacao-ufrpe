@@ -1,11 +1,20 @@
+-- File: src/CRUD/Query.hs
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CRUD.Query where
+module CRUD.Query (
+  User(..),
+  getConn,
+  fetchUserQ,
+  fetchTopUsersQ,
+  insertUserQ,
+  insertUserHashed,
+  checkLogin,
+  test
+) where
 import Database.SQLite.Simple
 import GHC.Generics
-import GHC.Generics (Constructor(conName))
 import Crypto.BCrypt (validatePassword)
 import Crypto.BCrypt (hashPasswordUsingPolicy, slowerBcryptHashingPolicy)
 import qualified Data.ByteString.Char8 as BS
@@ -18,13 +27,20 @@ data User = User {
   userScore :: Int
 } deriving (Eq, Show, FromRow, ToRow, Generic, ToJSON, FromJSON)
 
-getConn :: IO Connection 
+getConn :: IO Connection
 getConn = open "servantDB"
 
-fetchUserQ :: IO [User] 
+fetchUserQ :: IO [User]
 fetchUserQ = do
   conn <- getConn
   userList <- query_ conn "select * from users;"
+  close conn
+  pure userList
+
+fetchTopUsersQ :: IO [User]
+fetchTopUsersQ = do
+  conn <- getConn
+  userList <- query_ conn "SELECT * FROM users ORDER BY user_score DESC LIMIT 5;"
   close conn
   pure userList
 

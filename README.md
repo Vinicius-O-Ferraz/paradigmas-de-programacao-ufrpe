@@ -79,3 +79,26 @@ Depois tive que escolher o framework para a camada de aplicação (interface gr�
 
 No primeiro momento tentei fazer o proejto usando o Gtk2Hs. No entanto, estava tendo dificuldades com a instalação do projeto e também com a troca de estados do tabuleiro após o movimento.
 Em seguida, foi testado o Threepeenny-GUI que é uma biblioteca de interface gráfica muito interessante de haskell que roda a aplicação em um servidor javascript. Desta forma, é mais flexível e fácil de modificar. Isso se dá por que o Three-penny tem acesso a propriedades CSS.
+
+# Como executar o código
+Em primeiro lugar, se faz necessário ter instalado o Cabal e o GHCi. A documentação oficial de instalação pode ser encontrada em: https://www.haskell.org/cabal/ para o Cabal e https://www.haskell.org/ghc/ para o GHC e o GHCi.
+
+1 - Clone o repositório no github
+```
+git clone https://github.com/Vinicius-O-Ferraz/paradigmas-de-programacao-ufrpe.git
+```
+
+2 - Em seguida, abra o código no editor de sua preferência. Abra o terminal e navegue a pasta projeto
+```
+cd .\projeto\
+```
+
+3 - Compile o projeto cabal. Esta etapa pode demorar um pouco
+```
+cabal build
+```
+
+4 - Execute o arquivo
+```
+cabal run
+```

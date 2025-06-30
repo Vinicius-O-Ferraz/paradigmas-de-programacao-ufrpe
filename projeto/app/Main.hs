@@ -314,6 +314,12 @@ setup board0 window = do
   void $ element container #+ [element userDisplay, element buttons, element scoreDisplay, element boardView]
   void $ element body #+ [element container]
 
+  on UI.click loginDisplay $ \_ -> do 
+    showLoginBox window ""
+
+  on UI.click cadastroDisplay $ \_ -> do 
+    showCadastroBox window "" 
+
   on UI.keydown body $ \keyCode -> do
     board <- liftIO $ readIORef boardVar
     let (newBoard, points) = moveWithScore keyCode board
@@ -330,12 +336,6 @@ setup board0 window = do
 
       when (any (elem 2048) b2) $ showAlert window "Você venceu!"
       when (gameOver b2) $ showAlert window "Game Over!"
-
-      on UI.click loginDisplay $ \_ -> do 
-        showLoginBox window ""
-
-      on UI.click cadastroDisplay $ \_ -> do 
-        showCadastroBox window "" 
 
       newScore <- liftIO $ readIORef scoreVar
       void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)

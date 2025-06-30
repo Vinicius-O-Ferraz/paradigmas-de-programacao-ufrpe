@@ -30,9 +30,11 @@ data LoginRequest = LoginRequest {
   loginPassword :: String
 } deriving (Generic, FromJSON)
 
+--tipo que cria o ranking como uma lista de usuarios
 data Leaderboard = Leaderboard { players :: [User] }
   deriving (Generic, FromJSON)
 
+--transforma o Leaderboard em um JSON
 instance ToJSON Leaderboard where
   toJSON (Leaderboard ps) = object ["players" .= ps]
 

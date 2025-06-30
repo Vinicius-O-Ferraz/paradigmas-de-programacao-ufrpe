@@ -30,6 +30,8 @@ De maneira geral, foi uma experiência bastante interessante utilizar a programa
 
 O Login foi feito utilizando a biblioteca Servant e SQLite-simple. Foram utilizadas as bibliotecas bcrypt e bytestring para encriptação de senhas/ warp, wai e wai-cors para a construção do server e aeson para lidar com JSON.
 
+![Vídeo Login](https://github.com/user-attachments/assets/4658d7bb-4d73-4519-a82b-553470fa9407)
+
 # Uso de IA
 
 ## Ryan Eskinazi:

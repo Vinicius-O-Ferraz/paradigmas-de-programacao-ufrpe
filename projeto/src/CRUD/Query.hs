@@ -3,53 +3,52 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module CRUD.Query where
+
 import Database.SQLite.Simple
 import GHC.Generics
-import GHC.Generics (Constructor(conName))
-import Crypto.BCrypt (validatePassword)
-import Crypto.BCrypt (hashPasswordUsingPolicy, slowerBcryptHashingPolicy)
+import Crypto.BCrypt (validatePassword, hashPasswordUsingPolicy, slowerBcryptHashingPolicy)
 import qualified Data.ByteString.Char8 as BS
 import Data.Aeson (ToJSON, FromJSON)
 
-data User = User {
-  userId:: Int,
-  userName:: String,
-  userPassword :: String,
-  userScore :: Int
+data Usuario = Usuario {
+  idUsuario       :: Int,
+  nomeUsuario     :: String,
+  senhaUsuario    :: String,
+  pontuacaoUsuario :: Int
 } deriving (Eq, Show, FromRow, ToRow, Generic, ToJSON, FromJSON)
 
-getConn :: IO Connection 
-getConn = open "servantDB"
+obterConexao :: IO Connection 
+obterConexao = open "servantDB"
 
-fetchUserQ :: IO [User] 
-fetchUserQ = do
-  conn <- getConn
-  userList <- query_ conn "select * from users;"
+buscarUsuariosQ :: IO [Usuario]
+buscarUsuariosQ = do
+  conn <- obterConexao
+  listaUsuarios <- query_ conn "select * from users;"
   close conn
-  pure userList
+  pure listaUsuarios
 
-insertUserQ :: (String, String, Int) -> IO ()
-insertUserQ user = do
-  conn <- getConn
-  execute conn "insert into users (user_name, user_password, user_score) values (?,?,?)" user
+inserirUsuarioQ :: (String, String, Int) -> IO ()
+inserirUsuarioQ usuario = do
+  conn <- obterConexao
+  execute conn "insert into users (user_name, user_password, user_score) values (?,?,?)" usuario
   close conn
 
-insertUserHashed :: String -> String -> Int -> IO ()
-insertUserHashed name pass score = do
-  let passBS = BS.pack pass
-  maybeHash <- hashPasswordUsingPolicy slowerBcryptHashingPolicy passBS
-  case maybeHash of
+inserirUsuarioHash :: String -> String -> Int -> IO ()
+inserirUsuarioHash nome senha pontos = do
+  let senhaBS = BS.pack senha
+  talvezHash <- hashPasswordUsingPolicy slowerBcryptHashingPolicy senhaBS
+  case talvezHash of
     Nothing   -> putStrLn "Erro ao gerar hash da senha!"
-    Just hash -> insertUserQ (name, BS.unpack hash, score)
+    Just hash -> inserirUsuarioQ (nome, BS.unpack hash, pontos)
 
-checkLogin :: String -> String -> IO Bool
-checkLogin name pass = do
-  conn <- getConn
-  result <- query conn "SELECT user_password FROM users WHERE user_name = ?" (Only name) :: IO [Only String]
+verificarLogin :: String -> String -> IO Bool
+verificarLogin nome senha = do
+  conn <- obterConexao
+  resultado <- query conn "SELECT user_password FROM users WHERE user_name = ?" (Only nome) :: IO [Only String]
   close conn
-  case result of
-    [Only hash] -> return $ validatePassword (BS.pack hash) (BS.pack pass)
+  case resultado of
+    [Only hash] -> return $ validatePassword (BS.pack hash) (BS.pack senha)
     _           -> return False
 
-test :: IO()
-test = putStrLn "Hello from Query"
+teste :: IO ()
+teste = putStrLn "Olá do módulo Consulta"

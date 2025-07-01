@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecursiveDo #-}
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef
@@ -13,287 +11,102 @@ import Graphics.UI.Threepenny.Core
 
 import CRUD.Core
 
-type Board = [[Int]]
-boardSize :: Int
-boardSize = 4
+type Tabuleiro = [[Int]]
+tamanhoTabuleiro :: Int
+tamanhoTabuleiro = 4
 
-emptyBoard :: Board
-emptyBoard = replicate boardSize (replicate boardSize 0)
+tabuleiroVazio :: Tabuleiro
+tabuleiroVazio = replicate tamanhoTabuleiro (replicate tamanhoTabuleiro 0)
 
-showCell :: Int -> String
-showCell 0 = "."
-showCell n = show n
+mostrarCelula :: Int -> String
+mostrarCelula 0 = "."
+mostrarCelula n = show n
 
-addRandomTile :: Board -> IO Board
-addRandomTile board = do
-  let emptyCells = [(r,c) | r <- [0..boardSize-1], c <- [0..boardSize-1], (board !! r) !! c == 0]
-  if null emptyCells
-    then return board
+adicionarPecaAleatoria :: Tabuleiro -> IO Tabuleiro
+adicionarPecaAleatoria tabuleiro = do
+  let celulasVazias = [(l,c) | l <- [0..tamanhoTabuleiro-1], c <- [0..tamanhoTabuleiro-1], (tabuleiro !! l) !! c == 0]
+  if null celulasVazias
+    then return tabuleiro
     else do
-      (r,c) <- (emptyCells !!) <$> (randomRIO (0, length emptyCells - 1) :: IO Int)
+      (l,c) <- (celulasVazias !!) <$> (randomRIO (0, length celulasVazias - 1) :: IO Int)
       x <- randomRIO (1, 10) :: IO Int
       let val = if x == 10 then 4 else 2
-      let newRow = take c (board !! r) ++ [val] ++ drop (c + 1) (board !! r)
-      return $ take r board ++ [newRow] ++ drop (r + 1) board
+      let novaLinha = take c (tabuleiro !! l) ++ [val] ++ drop (c + 1) (tabuleiro !! l)
+      return $ take l tabuleiro ++ [novaLinha] ++ drop (l + 1) tabuleiro
 
-rotateBoard :: Board -> Board
-rotateBoard = reverse . transpose
+rotacionarTabuleiro :: Tabuleiro -> Tabuleiro
+rotacionarTabuleiro = reverse . transpose
 
--- move e calcula a pontuacao de uma linha
-moveLineWithScore :: [Int] -> ([Int], Int)
-moveLineWithScore xs = 
-  let noZeros = filter (/= 0) xs
-      (merged, score) = merge noZeros
-      padded = merged ++ replicate (boardSize - length merged) 0
-  in (padded, score)
+moverLinhaComPontuacao :: [Int] -> ([Int], Int)
+moverLinhaComPontuacao xs = 
+  let semZeros = filter (/= 0) xs
+      (fundidos, pontos) = fundir semZeros
+      preenchida = fundidos ++ replicate (tamanhoTabuleiro - length fundidos) 0
+  in (preenchida, pontos)
   where
-    merge (x:y:zs)
+    fundir (x:y:zs)
       | x == y =
-          let (rest, s) = merge zs
-          in ((x * 2) : rest, x * 2 + s)
+          let (resto, p) = fundir zs
+          in ((x * 2) : resto, x * 2 + p)
       | otherwise =
-          let (rest, s) = merge (y:zs)
-          in (x : rest, s)
-    merge xs = (xs, 0)
+          let (resto, p) = fundir (y:zs)
+          in (x : resto, p)
+    fundir xs = (xs, 0)
 
--- aplicando moveLineWithScore em todas as linhas
-moveBoardLeftWithScore :: Board -> (Board, Int)
-moveBoardLeftWithScore b = unzipWithSum (map moveLineWithScore b)
+moverTabuleiroEsquerdaComPontuacao :: Tabuleiro -> (Tabuleiro, Int)
+moverTabuleiroEsquerdaComPontuacao t = descompactarComSoma (map moverLinhaComPontuacao t)
 
-unzipWithSum :: [([Int], Int)] -> (Board, Int)
-unzipWithSum xs = (map fst xs, sum (map snd xs))
+descompactarComSoma :: [([Int], Int)] -> (Tabuleiro, Int)
+descompactarComSoma xs = (map fst xs, sum (map snd xs))
 
--- generalizacao para todas as direcoes
-moveWithScore :: Int -> Board -> (Board, Int)
-moveWithScore dir board =
-  case dir of
-    37 -> moveBoardLeftWithScore board
-    39 -> let (b, s) = moveBoardLeftWithScore (map reverse board)
-          in (map reverse b, s)
-    38 -> let (b, s) = moveBoardLeftWithScore (rotateBoard board)
-          in (rotateBoard . rotateBoard . rotateBoard $ b, s)
-    40 -> let (b, s) = moveBoardLeftWithScore (rotateBoard . rotateBoard . rotateBoard $ board)
-          in (rotateBoard b, s)
-    _  -> (board, 0)
+moverComPontuacao :: Int -> Tabuleiro -> (Tabuleiro, Int)
+moverComPontuacao direcao tabuleiro =
+  case direcao of
+    37 -> moverTabuleiroEsquerdaComPontuacao tabuleiro
+    39 -> let (t, p) = moverTabuleiroEsquerdaComPontuacao (map reverse tabuleiro)
+          in (map reverse t, p)
+    38 -> let (t, p) = moverTabuleiroEsquerdaComPontuacao (rotacionarTabuleiro tabuleiro)
+          in (rotacionarTabuleiro . rotacionarTabuleiro . rotacionarTabuleiro $ t, p)
+    40 -> let (t, p) = moverTabuleiroEsquerdaComPontuacao (rotacionarTabuleiro . rotacionarTabuleiro . rotacionarTabuleiro $ tabuleiro)
+          in (rotacionarTabuleiro t, p)
+    _  -> (tabuleiro, 0)
 
-gameOver :: Board -> Bool
-gameOver b = all (\f -> f b == b) [moveLeft, moveRight, moveUp, moveDown]
+fimDeJogo :: Tabuleiro -> Bool
+fimDeJogo t = all (\f -> f t == t) [moverEsquerda, moverDireita, moverCima, moverBaixo]
   where
-    moveLeft = map (fst . moveLineWithScore)
-    moveRight = map (reverse . fst . moveLineWithScore . reverse)
-    moveUp = rotateBoard . rotateBoard . rotateBoard . moveLeft . rotateBoard
-    moveDown = rotateBoard . moveLeft . rotateBoard . rotateBoard . rotateBoard
+    moverEsquerda = map (fst . moverLinhaComPontuacao)
+    moverDireita = map (reverse . fst . moverLinhaComPontuacao . reverse)
+    moverCima = rotacionarTabuleiro . rotacionarTabuleiro . rotacionarTabuleiro . moverEsquerda . rotacionarTabuleiro
+    moverBaixo = rotacionarTabuleiro . moverEsquerda . rotacionarTabuleiro . rotacionarTabuleiro . rotacionarTabuleiro
 
--- Renderiza o tabuleiro
-renderBoard :: Board -> UI Element
-renderBoard board = UI.div # set UI.style [("display", "inline-block"), ("font-family", "monospace")] #+
+renderizarTabuleiro :: Tabuleiro -> UI Element
+renderizarTabuleiro tabuleiro = UI.div # set UI.style [("display", "inline-block"), ("font-family", "monospace")] #+
   [ UI.div # set UI.style [("display", "flex")] #+
-      [ UI.div # set UI.style (cellStyle (board !! r !! c)) #+ [string (showCell (board !! r !! c))] | c <- [0..boardSize-1]]
-  | r <- [0..boardSize-1]]
+      [ UI.div # set UI.style (estiloCelula (tabuleiro !! l !! c)) #+ [string (mostrarCelula (tabuleiro !! l !! c))] | c <- [0..tamanhoTabuleiro-1]]
+  | l <- [0..tamanhoTabuleiro-1]]
   where
-    cellStyle 0 = [("width","50px"), ("height","50px"), ("margin","2px"), ("border","1px solid #ccc"),
-                   ("display","flex"), ("justify-content","center"), ("align-items","center"), ("background","#eee")]
-    cellStyle _ = [("width","50px"), ("height","50px"), ("margin","2px"), ("border","1px solid #ccc"),
-                   ("display","flex"), ("justify-content","center"), ("align-items","center"),
-                   ("background","#ffa"), ("font-weight","bold"), ("font-size","18px")]
+    estiloCelula 0 = [("width","50px"), ("height","50px"), ("margin","2px"), ("border","1px solid #ccc"),
+                      ("display","flex"), ("justify-content","center"), ("align-items","center"), ("background","#eee")]
+    estiloCelula _ = [("width","50px"), ("height","50px"), ("margin","2px"), ("border","1px solid #ccc"),
+                      ("display","flex"), ("justify-content","center"), ("align-items","center"),
+                      ("background","#ffa"), ("font-weight","bold"), ("font-size","18px")]
 
-showAlert :: Window -> String -> UI ()
-showAlert window msg = do
-  alertBox <- UI.div # set UI.text msg
-                     # set UI.style [("background-color", "lightyellow"),
-                                     ("border", "1px solid black"),
-                                     ("padding", "10px"),
-                                     ("position", "fixed"),
-                                     ("top", "40%"),
-                                     ("left", "40%"),
-                                     ("z-index", "1000")]
+configurarInterface :: Tabuleiro -> Window -> UI ()
+configurarInterface tabuleiroInicial janela = do
+  return janela # set UI.title "2048"
 
-  closeBtn <- UI.button # set UI.text "Fechar"
-  on UI.click closeBtn $ \_ -> UI.delete alertBox
-  element alertBox #+ [element closeBtn]
+  estadoTabuleiro <- liftIO $ newIORef tabuleiroInicial
+  estadoPontuacao <- liftIO $ newIORef 0
 
-  body <- getBody window
-  void $ element body #+ [element alertBox]
+  textoUsuario <- UI.span # set UI.text "" # set UI.id_ "userDisplay"
+  botaoLogin <- UI.button #. "button" #+ [string "Login"]
+  botaoCadastro <- UI.button #. "button" #+ [string "Cadastro"]
+  textoPontuacao <- UI.span # set UI.text "Score: 0"
 
-showLoginBox :: Window -> String -> UI ()
-showLoginBox window msg = do
-  loginBox <- UI.div # set UI.text msg
-                     # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
-                                     ("border", "1px solid #888"),
-                                     ("display", "flex"),
-                                     ("gap", "20px"),
-                                     ("border-radius", "8px"),
-                                     ("padding", "30px"),
-                                     ("margin", "30px"),  
-                                     ("width", "200px"), 
-                                     ("max-width", "80%"), 
-                                     ("text-align", "center"),
-                                     ("font-size", "12px"),
-                                     ("position", "fixed"),
-                                     ("top", "50%"),
-                                     ("left", "50%"),
-                                     ("transform", "translate(-50%, -50%)"),
-                                     ("z-index", "1000"),
-                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)"),
-                                     ("font-family", "Inter, sans-serif")]
+  visualTabuleiro <- renderizarTabuleiro tabuleiroInicial
 
-  buttons <- UI.div # set UI.style
-    [ ("display", "flex")
-    , ("flex-direction", "row")
-    , ("margin-left", "10px")
-    , ("justify-content", "center")
-    , ("padding", "1vh")
-    , ("cursor", "pointer")
-    ]
-
-  userEntry <- UI.entry (pure "")
-  passEntry <- UI.entry (pure "")
-  _ <- element passEntry # set (attr "type") "password"
-
-  loginBtn  <- UI.button #+ [string "Entrar"]
-  sairBtn  <- UI.button #+ [string "Sair"]
-
-  element loginBox #+ 
-      [ UI.column
-          [ UI.row [string "Login"]
-          , UI.row [string "Usuário: ", element userEntry]
-          , UI.row [string "Senha: ", element passEntry]
-          , UI.row [element loginBtn]
-          , UI.row [element sairBtn]
-          ]
-      ]
-
-  on UI.click loginBtn $ \_ -> do
-    username <- get UI.value (getElement userEntry)
-    password <- get UI.value (getElement passEntry)
-
-    let jsCode = mconcat
-          [ "fetch('http://localhost:8080/login', {"
-          , "method: 'POST',"
-          , "headers: { 'Content-Type': 'application/json' },"
-          , "body: JSON.stringify({ loginName: '", username, "', loginPassword: '", password, "' })"
-          , "})"
-          , ".then(response => response.json())"
-          , ".then(success => {"
-          , "if (success) {"
-          , "  document.getElementById('userDisplay').innerText = 'Olá, ", username, "!';"
-          , "  localStorage.setItem('user', JSON.stringify({ username: '", username, "' }));"
-          , "  console.log('oi');"
-          , "} else {"
-          , "  alert('Usuário não existe ou senha incorreta!');"
-          , "}"
-         , "});"
-         ]
-
-    runFunction $ ffi jsCode
-
-  on UI.click sairBtn $ \_ -> do
-
-    let jsCode = mconcat
-          [ "  document.getElementById('userDisplay').innerText = '';"
-          , "  localStorage.removeItem('user');"
-         ]
-
-    runFunction $ ffi jsCode
-           
-  closeBtn <- UI.button # set UI.text "Fechar"
-  on UI.click closeBtn $ \_ -> UI.delete loginBox
-  element loginBox #+ [element closeBtn]
-
-  body <- getBody window
-  void $ element loginBox #+ [element buttons, element closeBtn]
-  void $ element body #+ [element loginBox]
-
-showCadastroBox :: Window -> String -> UI ()
-showCadastroBox window msg = do
-  cadastroBox <- UI.div # set UI.text msg
-                     # set UI.style [("background-color", "rgba(255, 255, 170, 0.9)"),
-                                     ("border", "1px solid #888"),
-                                     ("border-radius", "8px"),
-                                     ("display", "flex"),
-                                     ("gap", "20px"),
-                                     ("padding", "30px"),
-                                     ("margin", "30px"),  
-                                     ("width", "200px"), 
-                                     ("max-width", "80%"), 
-                                     ("text-align", "center"),
-                                     ("font-size", "10px"),
-                                     ("position", "fixed"),
-                                     ("top", "50%"),
-                                     ("left", "50%"),
-                                     ("transform", "translate(-50%, -50%)"),
-                                     ("z-index", "1000"),
-                                     ("box-shadow", "0 4px 8px rgba(0,0,0,0.2)"),
-                                     ("font-family", "Inter, sans-serif")]
-
-  buttons <- UI.div # set UI.style
-    [ ("display", "flex")
-    , ("flex-direction", "row")
-    , ("justify-content", "center")
-    , ("padding", "1vh")
-    , ("cursor", "pointer")
-    ]
-
-  userCadastroEntry <- UI.entry (pure "")
-  passCadastroEntry <- UI.entry (pure "")
-  _ <- element passCadastroEntry # set (attr "type") "password"
-
-  cadastroBtn  <- UI.button #+ [string "Cadastrar"]
-
-  element cadastroBox #+ 
-      [ UI.column
-          [ UI.row [string "Cadastro"]
-          , UI.row [string "Usuário: ", element userCadastroEntry]
-          , UI.row [string "Senha: ", element passCadastroEntry]
-          , element cadastroBtn
-          ]
-      ]
-
-  on UI.click cadastroBtn $ \_ -> do
-    username <- get UI.value (getElement userCadastroEntry)
-    password <- get UI.value (getElement passCadastroEntry)
-    let score = "0"
-
-    let jsCode = mconcat
-          [ "fetch('http://localhost:8080/users', {"
-          , "method: 'POST',"
-          , "headers: { 'Content-Type': 'application/json' },"
-          , "body: JSON.stringify({ userName: '", username, "', userPassword: '", password, "', userScore: ", score, "})"
-          , "})"
-          , ".then(response => response.json())"
-          , ".then(success => {"
-          , "if (success) {"
-          , "  alert('Cadastro sucedido');"
-          , "} else {"
-          , "  alert('Cadastro não sucedido');"
-          , "}"
-         , "});"
-         ]
-
-    runFunction $ ffi jsCode
-           
-  closeBtn <- UI.button # set UI.text "Fechar"
-  on UI.click closeBtn $ \_ -> UI.delete cadastroBox
-  element cadastroBox #+ [element closeBtn]
-
-  body <- getBody window
-  void $ element cadastroBox #+ [element buttons, element closeBtn]
-  void $ element body #+ [element cadastroBox]
-
-setup :: Board -> Window -> UI ()
-setup board0 window = do
-  return window # set UI.title "2048"
-
-  boardVar <- liftIO $ newIORef board0
-  scoreVar <- liftIO $ newIORef 0
-  userDisplay <- UI.span # set UI.text "" # set UI.id_ "userDisplay"
-  loginDisplay <- UI.button #. "button" #+ [string "Login"]
-  cadastroDisplay <- UI.button #. "button" #+ [string "Cadastro"]
-  scoreDisplay <- UI.span # set UI.text "Score: 0"
-
-  boardView <- renderBoard board0
-  body <- getBody window
-  buttons <- UI.div # set UI.style
+  corpo <- getBody janela
+  botoes <- UI.div # set UI.style
     [ ("display", "flex")
     , ("flex-direction", "row")
     , ("justify-content", "center")
@@ -301,6 +114,7 @@ setup board0 window = do
     , ("padding", "2vh")
     , ("cursor", "pointer")
     ]
+
   container <- UI.div # set UI.style
     [ ("display", "flex")
     , ("flex-direction", "column")
@@ -310,37 +124,37 @@ setup board0 window = do
     , ("overflow ", "hidden")
     ]
 
-  void $ element buttons #+ [element loginDisplay, element cadastroDisplay]
-  void $ element container #+ [element userDisplay, element buttons, element scoreDisplay, element boardView]
-  void $ element body #+ [element container]
+  void $ element botoes #+ [element botaoLogin, element botaoCadastro]
+  void $ element container #+ [element textoUsuario, element botoes, element textoPontuacao, element visualTabuleiro]
+  void $ element corpo #+ [element container]
 
-  on UI.keydown body $ \keyCode -> do
-    board <- liftIO $ readIORef boardVar
-    let (newBoard, points) = moveWithScore keyCode board
+  on UI.keydown corpo $ \tecla -> do
+    tabuleiro <- liftIO $ readIORef estadoTabuleiro
+    let (novoTabuleiro, pontos) = moverComPontuacao tecla tabuleiro
 
-    if newBoard == board then return () else do
-      liftIO $ modifyIORef scoreVar (+ points)
+    if novoTabuleiro == tabuleiro then return () else do
+      liftIO $ modifyIORef estadoPontuacao (+ pontos)
 
-      b2 <- liftIO $ addRandomTile newBoard
-      liftIO $ writeIORef boardVar b2
+      tabuleiroComPeca <- liftIO $ adicionarPecaAleatoria novoTabuleiro
+      liftIO $ writeIORef estadoTabuleiro tabuleiroComPeca
 
-      void $ element boardView # set children []
-      newView <- renderBoard b2
-      void $ element boardView #+ [element newView]
+      void $ element visualTabuleiro # set children []
+      novaVisualizacao <- renderizarTabuleiro tabuleiroComPeca
+      void $ element visualTabuleiro #+ [element novaVisualizacao]
 
-      when (any (elem 2048) b2) $ showAlert window "Você venceu!"
-      when (gameOver b2) $ showAlert window "Game Over!"
+      when (any (elem 2048) tabuleiroComPeca) $ mostrarAlerta janela "Você venceu!"
+      when (fimDeJogo tabuleiroComPeca) $ mostrarAlerta janela "Game Over!"
 
-      on UI.click loginDisplay $ \_ -> do 
-        showLoginBox window ""
+      on UI.click botaoLogin $ \_ -> do 
+        mostrarCaixaLogin janela ""
 
-      on UI.click cadastroDisplay $ \_ -> do 
-        showCadastroBox window "" 
+      on UI.click botaoCadastro $ \_ -> do 
+        mostrarCaixaCadastro janela "" 
 
-      newScore <- liftIO $ readIORef scoreVar
-      void $ element scoreDisplay # set UI.text ("Score: " ++ show newScore)
+      novaPontuacao <- liftIO $ readIORef estadoPontuacao
+      void $ element textoPontuacao # set UI.text ("Score: " ++ show novaPontuacao)
 
 main :: IO ()
 main = do
-  startBoard <- addRandomTile =<< addRandomTile emptyBoard
-  startGUI defaultConfig (setup startBoard)
+  tabuleiroInicial <- adicionarPecaAleatoria =<< adicionarPecaAleatoria tabuleiroVazio
+  startGUI defaultConfig (configurarInterface tabuleiroInicial)

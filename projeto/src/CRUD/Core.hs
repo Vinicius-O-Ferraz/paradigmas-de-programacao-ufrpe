@@ -17,44 +17,43 @@ import Control.Monad.IO.Class (liftIO)
 
 import CRUD.Query
 
-data NewUser = NewUser {
-  userName     :: String,
-  userPassword :: String,
-  userScore :: Int
+data NovoUsuario = NovoUsuario {
+  nomeUsuario     :: String,
+  senhaUsuario    :: String,
+  pontuacaoUsuario :: Int
 } deriving (Generic, FromJSON)
 
-data LoginRequest = LoginRequest { 
-  loginName     :: String,
-  loginPassword :: String
+data RequisicaoLogin = RequisicaoLogin { 
+  nomeLogin  :: String,
+  senhaLogin :: String
 } deriving (Generic, FromJSON)
 
-type UserAPI =
-       "users" :> Get '[JSON] [User]
-  :<|> "users" :> ReqBody '[JSON] NewUser :> Post '[JSON] ()
-  :<|> "login" :> ReqBody '[JSON] LoginRequest :> Post '[JSON] Bool
+type UsuarioAPI =
+       "usuarios" :> Get '[JSON] [Usuario]
+  :<|> "usuarios" :> ReqBody '[JSON] NovoUsuario :> Post '[JSON] ()
+  :<|> "login"    :> ReqBody '[JSON] RequisicaoLogin :> Post '[JSON] Bool
 
-server :: Server UserAPI
-server = fetchUser
-    :<|> insertUser
-    :<|> login
+servidor :: Server UsuarioAPI
+servidor = buscarUsuarios
+      :<|> inserirUsuario
+      :<|> autenticarLogin
 
-fetchUser :: Handler [User]
-fetchUser = liftIO fetchUserQ
+buscarUsuarios :: Handler [Usuario]
+buscarUsuarios = liftIO buscarUsuariosQ
 
-insertUser :: NewUser -> Handler ()
-insertUser (NewUser name pass score) = liftIO $ insertUserHashed name pass score
+inserirUsuario :: NovoUsuario -> Handler ()
+inserirUsuario (NovoUsuario nome senha pontos) = liftIO $ inserirUsuarioHash nome senha pontos
 
-login :: LoginRequest -> Handler Bool
-login(LoginRequest name pass) = do
-  liftIO $ checkLogin name pass
+autenticarLogin :: RequisicaoLogin -> Handler Bool
+autenticarLogin (RequisicaoLogin nome senha) = liftIO $ verificarLogin nome senha
 
-app :: Application
-app = serve (Proxy :: Proxy UserAPI) server
+aplicacao :: Application
+aplicacao = serve (Proxy :: Proxy UsuarioAPI) servidor
 
-mainServer :: IO ()
-mainServer = run 8080 (cors (const $ Just policy) app)
+servidorPrincipal :: IO ()
+servidorPrincipal = run 8080 (cors (const $ Just politica) aplicacao)
   where
-    policy = simpleCorsResourcePolicy
+    politica = simpleCorsResourcePolicy
       { corsOrigins = Just (["http://127.0.0.1:8023"], True)
       , corsRequestHeaders = ["Content-Type"]
       , corsMethods = ["GET", "POST", "OPTIONS"]
